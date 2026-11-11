@@ -13,14 +13,17 @@ $edit=null;
 if ($_SERVER['REQUEST_METHOD']==='POST'){
     if(!verify_csrf()){ flash('error','CSRF failed'); redirect('rooms.php'); }
     $n=$_POST['room_number']; $t=$_POST['room_type']; $c=(int)$_POST['capacity'];
-    $p=(float)$_POST['price']; $st=$_POST['status'];
+    $p=(float)$_POST['price'];
+    
     if (!empty($_POST['room_id'])){
         $id=(int)$_POST['room_id'];
-        $stmt=$conn->prepare("UPDATE rooms SET room_number=?,room_type=?,capacity=?,price_per_night=?,status=? WHERE room_id=?");
-        $stmt->bind_param("ssidsi",$n,$t,$c,$p,$st,$id);
+        // HINDI NA NAKA-INSERT ANG STATUS SA UPDATE. Mananatili kung ano ang current status niya.
+        $stmt=$conn->prepare("UPDATE rooms SET room_number=?,room_type=?,capacity=?,price_per_night=? WHERE room_id=?");
+        $stmt->bind_param("ssidi",$n,$t,$c,$p,$id);
     } else {
-        $stmt=$conn->prepare("INSERT INTO rooms (room_number,room_type,capacity,price_per_night,status) VALUES (?,?,?,?,?)");
-        $stmt->bind_param("ssids",$n,$t,$c,$p,$st);
+        // KAPAG BAGONG ADD, AUTOMATIC VACANT
+        $stmt=$conn->prepare("INSERT INTO rooms (room_number,room_type,capacity,price_per_night,status) VALUES (?,?,?,?,'Vacant')");
+        $stmt->bind_param("ssid",$n,$t,$c,$p);
     }
     if($stmt->execute()) flash('success','Saved.'); else flash('error','Save failed: '.$conn->error);
     redirect('rooms.php');
@@ -41,23 +44,29 @@ header_html('rooms','Room Management'); ?>
    <option value="<?=$c?>" <?=($edit['capacity']??0)==$c?'selected':''?>><?=$c?> persons</option>
   <?php endforeach; ?></select>
  <input type="number" step="0.01" name="price" placeholder="Price" required value="<?=$edit['price_per_night']??''?>">
- <select name="status">
-  <?php foreach(['Vacant','Reserved','Occupied','Cleaning'] as $s): ?>
-   <option <?=($edit['status']??'Vacant')===$s?'selected':''?>><?=$s?></option>
-  <?php endforeach; ?></select>
+ 
+ <!-- STATUS DROPDOWN REMOVED -->
+ 
  <button class="btn btn-primary"><?=$edit?'Update':'Add'?></button>
  <?php if($edit): ?><a href="rooms.php" class="btn btn-secondary">Cancel</a><?php endif; ?>
 </form></div>
 
-<table><tr><th>#</th><th>Number</th><th>Type</th><th>Cap</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+<table>
+<!-- STATUS COLUMN REMOVED SA TABLE -->
+<tr><th>#</th><th>Number</th><th>Type</th><th>Cap</th><th>Price</th><th>Actions</th></tr>
 <?php $r=$conn->query("SELECT * FROM rooms ORDER BY room_number");
-while($x=$r->fetch_assoc()):
- $cls=['Vacant'=>'bg-green','Occupied'=>'bg-red','Reserved'=>'bg-yellow','Cleaning'=>'bg-blue'][$x['status']] ?? 'bg-gray'; ?>
-<tr><td><?=$x['room_id']?></td><td><?=e($x['room_number'])?></td><td><?=e($x['room_type'])?></td>
-<td><?=$x['capacity']?></td><td><?=money($x['price_per_night'])?></td>
-<td><span class="badge <?=$cls?>"><?=e($x['status'])?></span></td>
-<td><a href="rooms.php?edit=<?=$x['room_id']?>" class="btn btn-edit btn-sm">Edit</a>
-<a href="rooms.php?delete=<?=$x['room_id']?>" class="btn btn-delete btn-sm"
- onclick="return confirm('Delete?')">Delete</a></td></tr>
+while($x=$r->fetch_assoc()): ?>
+<tr>
+    <td><?=$x['room_id']?></td>
+    <td><?=e($x['room_number'])?></td>
+    <td><?=e($x['room_type'])?></td>
+    <td><?=$x['capacity']?></td>
+    <td><?=money($x['price_per_night'])?></td>
+    <td>
+        <a href="rooms.php?edit=<?=$x['room_id']?>" class="btn btn-edit btn-sm">Edit</a>
+        <a href="rooms.php?delete=<?=$x['room_id']?>" class="btn btn-delete btn-sm"
+         onclick="return confirm('Delete?')">Delete</a>
+    </td>
+</tr>
 <?php endwhile; ?></table>
 <?php footer_html();

@@ -118,8 +118,8 @@ header_html('dashboard','Welcome, '.$u['name']); ?>
 
 <!-- DUAL CALENDAR UI -->
 <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 30px;">
-    <?php drawStaffCalendar('🏨 Room Availability', 'room', $conn, $rooms, $cafeData, $currentMonth, $currentYear, $daysInMonth, $dayOfWeek); ?>
-    <?php drawStaffCalendar('☕ Café 1947 Bookings', 'cafe', $conn, $rooms, $cafeData, $currentMonth, $currentYear, $daysInMonth, $dayOfWeek); ?>
+    <?php drawStaffCalendar('Room Availability', 'room', $conn, $rooms, $cafeData, $currentMonth, $currentYear, $daysInMonth, $dayOfWeek); ?>
+    <?php drawStaffCalendar('Café 1947 Bookings', 'cafe', $conn, $rooms, $cafeData, $currentMonth, $currentYear, $daysInMonth, $dayOfWeek); ?>
 </div>
 
 <div style="margin-top: 20px; text-align: center; font-size: 12px; color: #64748b; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">

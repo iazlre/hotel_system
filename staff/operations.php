@@ -15,7 +15,6 @@ if (isset($_GET['undo_checkin'])){
             $conn->query("UPDATE room_reservations SET reservation_status='Confirmed' WHERE reservation_id=$res_id");
         }
         $conn->query("UPDATE rooms SET status='Reserved' WHERE room_id=$room_id");
-        
         flash('success', "Booking #$id has been reverted back to a Confirmed Reservation.");
     }
     redirect('operations.php');
@@ -46,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['checkin'])){
     redirect('operations.php');
 }
 
-// --- Receptionist: custom check out ---
+// --- Receptionist: custom check out (AUTO-ASSIGN) ---
 if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['checkout'])){
     if(!verify_csrf()){ flash('error','CSRF failed'); redirect('operations.php'); }
     $id=(int)$_POST['booking_id'];
@@ -60,9 +59,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['checkout'])){
             $stmt=$conn->prepare("UPDATE booking_list SET check_out=?,booking_status='Checked-Out',payment_status='Paid' WHERE booking_id=?");
             $stmt->bind_param("si",$out_time,$id); $stmt->execute();
             $conn->query("UPDATE rooms SET status='Cleaning' WHERE room_id=".(int)$b['room_id']);
-            $conn->query("INSERT INTO housekeeping_logs (room_id,task_description,scheduled_date)
-              VALUES (".(int)$b['room_id'].",'Routine Cleaning & Bed Reset',NOW())");
-            flash('success',"Booking #$id checked out. Room is now in Cleaning status.");
+            
+            $hk_q = $conn->query("SELECT staff_id FROM staff WHERE role='Housekeeping' AND status='Active' LIMIT 1")->fetch_assoc();
+            $hk_id = $hk_q ? (int)$hk_q['staff_id'] : 'NULL';
+            
+            $conn->query("INSERT INTO housekeeping_logs (room_id, assigned_housekeeper_id, task_description, scheduled_date)
+              VALUES (".(int)$b['room_id'].", $hk_id, 'Routine Cleaning & Bed Reset', NOW())");
+              
+            flash('success',"Booking #$id checked out. Room is now in Cleaning status, task assigned to Housekeeping.");
         }
     }
     redirect('operations.php');
@@ -101,7 +105,7 @@ if ($role==='Receptionist' || $role==='Manager'):
 ?>
 <h2 style="font-size:18px;color:#1e293b;margin-bottom:10px;">Arrivals — Confirmed Reservations</h2>
 <table style="margin-bottom:30px;">
-<tr><th>#</th><th>Guest</th><th>Room</th><th>Expected In</th><th>Expected Out</th><th>Action (Check-In)</th></tr>
+<tr><th>ID NUMBER</th><th>Guest</th><th>Room</th><th>Expected In</th><th>Expected Out</th><th>Action (Check-In)</th></tr>
 <?php 
 $r=$conn->query("SELECT rr.*,g.first_name,g.last_name,rm.room_number,rm.price_per_night FROM room_reservations rr
   JOIN guests g ON rr.guest_id=g.guest_id JOIN rooms rm ON rr.room_id=rm.room_id
@@ -112,19 +116,18 @@ while($x=$r->fetch_assoc()):
     $is_early = date('Y-m-d', $expected_time) > date('Y-m-d');
     $is_late = ($expected_time < time()) && !$is_early; 
     
-    // PAREHONG DESIGN NA PARA SA LATE AT FUTURE DATE
     $badge_style = "color:#b91c1c; font-size:10px; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:4px;";
 ?>
 <tr>
-    <td>#<?=$x['reservation_id']?></td>
+    <td><?=$x['reservation_id']?></td>
     <td><?=e($x['first_name'].' '.$x['last_name'])?></td>
     <td><?=e($x['room_number'])?></td>
     <td>
         <?=dt($x['expected_check_in'])?>
         <?php if($is_early): ?>
-            <br><span style="<?=$badge_style?>"> FUTURE DATE</span>
+            <br><span style="<?=$badge_style?>">⚠️ FUTURE DATE</span>
         <?php elseif($is_late): ?>
-            <br><span style="<?=$badge_style?>"> LATE</span>
+            <br><span style="<?=$badge_style?>">🔴 LATE</span>
         <?php endif; ?>
     </td>
     <td><?=dt($x['expected_check_out'])?></td>
@@ -137,7 +140,7 @@ while($x=$r->fetch_assoc()):
             
             <button name="checkin" class="btn <?= $is_early ? 'btn-delete' : 'btn-primary' ?> btn-sm" 
                 onclick="return confirmEarlyCheckIn(this.form, '<?=$x['expected_check_in']?>', '<?=$x['expected_check_out']?>', <?=$x['price_per_night']?>)">
-                <?= $is_early ? 'Early Check-In' : 'Confirm Check-In' ?>
+                <?= $is_early ? '⚠️ Early Check-In' : 'Confirm Check-In' ?>
             </button>
         </form>
     </td>
@@ -146,14 +149,14 @@ while($x=$r->fetch_assoc()):
 
 <h2 style="font-size:18px;color:#1e293b;margin-bottom:10px;">Active Bookings — Check-Out</h2>
 <table style="margin-bottom:30px;">
-<tr><th>#</th><th>Guest</th><th>Room</th><th>Actual In</th><th>Expected Out</th><th>Total</th><th>Actions</th></tr>
+<tr><th>ID NUMBER</th><th>Guest</th><th>Room</th><th>Actual In</th><th>Expected Out</th><th>Total</th><th>Actions</th></tr>
 <?php $r=$conn->query("SELECT b.*,g.first_name,g.last_name,rm.room_number FROM booking_list b
   JOIN guests g ON b.guest_id=g.guest_id JOIN rooms rm ON b.room_id=rm.room_id
   WHERE b.booking_status='Checked-In' ORDER BY b.check_in");
 if($r->num_rows===0) echo "<tr><td colspan='7' class='empty'>No checked-in guests.</td></tr>";
 while($x=$r->fetch_assoc()): ?>
 <tr>
-    <td>#<?=$x['booking_id']?></td>
+    <td><?=$x['booking_id']?></td>
     <td><?=e($x['first_name'].' '.$x['last_name'])?></td>
     <td><?=e($x['room_number'])?></td>
     <td><?=dt($x['check_in'])?></td>
@@ -170,7 +173,7 @@ while($x=$r->fetch_assoc()): ?>
 
             <a href="operations.php?undo_checkin=<?=$x['booking_id']?>" class="btn btn-secondary btn-sm" style="text-align:center; margin-top:5px;" 
                onclick="return confirm('Are you sure you want to UNDO this Check-In and revert it back to a Reservation?')">
-               ↩ Revert to Reservation
+               ↩️ Revert to Reservation
             </a>
         </div>
     </td>
@@ -182,16 +185,18 @@ if ($role==='Cafe Staff' || $role==='Manager'):
 ?>
 <h2 style="font-size:18px;color:#1e293b;margin-bottom:10px;">Café Reservations</h2>
 <table style="margin-bottom:30px;">
-<tr><th>#</th><th>Guest</th><th>Table</th><th>Date</th><th>Time</th><th>Pax</th><th>Status</th><th>Actions</th></tr>
+<tr><th>ID NUMBER</th><th>Guest</th><th>Table</th><th>Date</th><th>Time</th><th>Pax</th><th>Status</th><th>Actions</th></tr>
 <?php $r=$conn->query("SELECT cr.*,g.first_name,g.last_name,ct.table_number FROM cafe_reservations cr
   JOIN guests g ON cr.guest_id=g.guest_id JOIN cafe_tables ct ON cr.table_id=ct.table_id
   WHERE cr.status IN ('Confirmed','Seated') ORDER BY cr.reservation_date,cr.reservation_time");
 if($r->num_rows===0) echo "<tr><td colspan='8' class='empty'>No active café reservations.</td></tr>";
 while($x=$r->fetch_assoc()):
  $cls=['Confirmed'=>'bg-blue','Seated'=>'bg-yellow'][$x['status']] ?? 'bg-gray'; ?>
-<tr><td>#<?=$x['reservation_id']?></td><td><?=e($x['first_name'].' '.$x['last_name'])?></td>
+<tr><td><?=$x['reservation_id']?></td><td><?=e($x['first_name'].' '.$x['last_name'])?></td>
 <td><?=e($x['table_number'])?></td><td><?=d($x['reservation_date'])?></td>
-<td><?=substr($x['reservation_time'],0,5)?></td><td><?=$x['number_of_guests']?></td>
+<!-- BINAGO: Naka-12-hour format na -->
+<td><?=date('g:i A', strtotime($x['reservation_time']))?></td>
+<td><?=$x['number_of_guests']?></td>
 <td><span class="badge <?=$cls?>"><?=e($x['status'])?></span></td>
 <td>
 <?php if($x['status']==='Confirmed'): ?>
@@ -208,58 +213,37 @@ while($x=$r->fetch_assoc()):
 <?php if ($role==='Housekeeping' || $role==='Manager'): ?>
 <h2 style="font-size:18px;color:#1e293b;margin-bottom:10px;">Housekeeping Tasks</h2>
 <table>
-<tr><th>#</th><th>Room</th><th>Task</th><th>Assigned To</th><th>Scheduled</th><th>Status</th><th>Update</th></tr>
-<?php $r=$conn->query("SELECT hl.*,rm.room_number FROM housekeeping_logs hl
+<tr><th>ID NUMBER</th><th>Room</th><th>Task</th><th>Assigned To</th><th>Scheduled</th><th>Status</th><th>Update</th></tr>
+<?php 
+$r=$conn->query("SELECT hl.*,rm.room_number, s.first_name, s.last_name FROM housekeeping_logs hl
   JOIN rooms rm ON hl.room_id=rm.room_id
-  WHERE (hl.assigned_housekeeper_id=$sid OR hl.assigned_housekeeper_id IS NULL) AND hl.cleaning_status<>'Completed'
+  LEFT JOIN staff s ON hl.assigned_housekeeper_id=s.staff_id
+  WHERE hl.cleaning_status<>'Completed'
   ORDER BY hl.scheduled_date");
+
 if($r->num_rows===0) echo "<tr><td colspan='7' class='empty'>No open tasks. Well done!</td></tr>";
 while($x=$r->fetch_assoc()):
- $cls=['Pending'=>'bg-yellow','In Progress'=>'bg-blue'][$x['cleaning_status']] ?? 'bg-gray'; ?>
-<tr><td><?=$x['log_id']?></td><td><?=e($x['room_number'])?></td><td><?=e($x['task_description'])?></td>
-<td><?= $x['assigned_housekeeper_id'] == $sid ? 'You' : 'Unassigned' ?></td><td><?=dt($x['scheduled_date'])?></td>
-<td><span class="badge <?=$cls?>"><?=e($x['cleaning_status'])?></span></td>
-<td><form method="POST" style="display:inline-flex;gap:5px;"><?=csrf_field()?>
- <input type="hidden" name="log_id" value="<?=$x['log_id']?>">
- <select name="cleaning_status" style="padding:4px;">
- <?php foreach(['Pending','In Progress','Completed'] as $s): ?>
-  <option <?=$x['cleaning_status']===$s?'selected':''?>><?=$s?></option>
- <?php endforeach; ?></select>
- <button name="hk" class="btn btn-primary btn-sm">Save</button></form></td></tr>
-<?php endwhile; ?></table>
-<?php endif; footer_html(); ?>
-
-<!-- JAVASCRIPT PARA SA FULL PRICE AT TIME CALCULATION -->
-<script>
-function confirmEarlyCheckIn(form, expectedInStr, expectedOutStr, pricePerNight) {
-    let actualIn = new Date(form.checkin_time.value);
-    let expectedIn = new Date(expectedInStr);
-    let expectedOut = new Date(expectedOutStr);
-
-    if (actualIn < expectedIn) {
-        let diffMs = expectedOut - actualIn;
-        
-        let daysExact = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        let hoursExact = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        let minsExact = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        
-        let newNights = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-        let newTotalPrice = newNights * pricePerNight;
-        
-        let msg = "⚠️ EARLY CHECK-IN WARNING ⚠️\n\n";
-        msg += "Expected Check-In: " + expectedIn.toLocaleString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) + "\n";
-        msg += "Actual Check-In: " + actualIn.toLocaleString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) + "\n";
-        msg += "Expected Check-Out: " + expectedOut.toLocaleString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) + "\n\n";
-        
-        msg += "Total Duration: " + daysExact + " Days, " + hoursExact + " Hrs, " + minsExact + " Mins\n";
-        msg += "(Hotel Rule: Any partial day is charged as a full night)\n\n";
-        
-        msg += "NEW TOTAL NIGHTS: " + newNights + "\n";
-        msg += "FULL TOTAL PRICE: ₱" + newTotalPrice.toLocaleString('en-US', {minimumFractionDigits: 2}) + "\n\n";
-        msg += "Do you want to proceed with the Early Check-In?";
-        
-        return confirm(msg);
-    }
-    return confirm("Confirm Check-In for this guest?");
-}
-</script>
+ $cls=['Pending'=>'bg-yellow','In Progress'=>'bg-blue'][$x['cleaning_status']] ?? 'bg-gray'; 
+ $assignee = ($x['assigned_housekeeper_id'] == $sid) ? 'You' : ($x['first_name'] ? $x['first_name'].' '.$x['last_name'] : 'Unassigned');
+?>
+<tr>
+    <td><?=$x['log_id']?></td>
+    <td><?=e($x['room_number'])?></td>
+    <td><?=e($x['task_description'])?></td>
+    <td><?=e($assignee)?></td>
+    <td><?=dt($x['scheduled_date'])?></td>
+    <td><span class="badge <?=$cls?>"><?=e($x['cleaning_status'])?></span></td>
+    <td>
+        <form method="POST" style="display:inline-flex;gap:5px;"><?=csrf_field()?>
+         <input type="hidden" name="log_id" value="<?=$x['log_id']?>">
+         <select name="cleaning_status" style="padding:4px;">
+         <?php foreach(['Pending','In Progress','Completed'] as $s): ?>
+          <option <?=$x['cleaning_status']===$s?'selected':''?>><?=$s?></option>
+         <?php endforeach; ?></select>
+         <button name="hk" class="btn btn-primary btn-sm">Save</button>
+        </form>
+    </td>
+</tr>
+<?php endwhile; ?>
+</table>
+<?php endif; footer_html(); ?>s

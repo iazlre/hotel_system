@@ -3,6 +3,9 @@
 $view_date = isset($_GET['view_date']) ? $_GET['view_date'] : date('Y-m-d');
 $view_time = isset($_GET['view_time']) ? $_GET['view_time'] : '12:00';
 
+// Kunin ang napiling table galing sa URL (kung meron)
+$selected_table_id = isset($_GET['selected_table']) ? (int)$_GET['selected_table'] : 0;
+
 $day_of_week = date('D', strtotime($view_date));
 $is_closed = ($day_of_week === 'Tue');
 
@@ -39,35 +42,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
             }
         }
     }
-    redirect('book_cafe.php?view_date='.$date.'&view_time='.$time);
+    redirect('book_cafe.php');
 }
 
 header_html('cafe','Reserve a Café Table'); ?>
 
 <style>
     .cafe-wrapper { max-width: 850px; margin: 0 auto; }
-    
-    /* Force exactly 6 columns */
-    .table-grid { 
-        display: grid; 
-        grid-template-columns: repeat(6, 1fr); 
-        gap: 12px; 
-        margin-bottom: 30px; 
-    }
+    .table-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 30px; }
     
     .table-card { 
-        padding: 12px 5px; 
-        border-radius: 8px; 
-        text-align: center; 
-        font-size: 13px; 
-        font-weight: bold; 
-        cursor: pointer; 
-        border: 2px solid transparent; 
-        transition: 0.2s;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        padding: 12px 5px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; 
+        cursor: pointer; border: 2px solid transparent; transition: 0.2s;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     
     .table-card:hover { opacity: 0.8; transform: translateY(-2px); }
@@ -76,10 +63,22 @@ header_html('cafe','Reserve a Café Table'); ?>
     .tc-red { background: #fee2e2; color: #991b1b; }
     .tc-selected { border: 2px solid #3b82f6; background: #dbeafe; color: #1e40af; transform: scale(1.05); }
     
-    /* Perfect centering */
     .center-row { display: flex; justify-content: center; align-items: center; width: 100%; gap: 15px; flex-wrap: wrap; }
     
-    /* NEW DESIGN FOR CAPACITY BADGES */
+    /* Design para sa Operating Hours Banner */
+    .hours-banner {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        font-size: 12px;
+        color: #0369a1;
+        margin-bottom: 25px;
+        line-height: 1.6;
+    }
+
+    /* Design para sa Capacity Cards */
     .capacity-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -100,29 +99,36 @@ header_html('cafe','Reserve a Café Table'); ?>
 
 <div class="cafe-wrapper">
     <div class="form-container">
-        
-        <!-- TITLE -->
-        <h3 style="text-align: center; margin-bottom: 25px; color: #1e293b;">New Café Reservation</h3>
+        <h3 style="text-align: center; margin-bottom: 15px; color: #1e293b;">New Café Reservation</h3>
 
-        <!-- TOP: Date & Time Centered -->
+        <!-- BAGONG OPERATING HOURS BANNER -->
+        <div class="hours-banner">
+            <strong>Café 1947 Operating Hours:</strong><br>
+            <b>Mon, Wed, Thu:</b> 9:00 AM – 8:00 PM &nbsp;|&nbsp; 
+            <b>Fri – Sun:</b> 9:00 AM – 9:00 PM &nbsp;|&nbsp; 
+            <span style="color: #dc2626; font-weight: bold;">Tuesday: CLOSED</span>
+        </div>
+
         <div class="center-row" style="margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px dashed #cbd5e1;">
             <span style="font-weight: bold; font-size: 13px; color: #1e293b;">Choose Date & Time:</span>
             
-            <form method="GET" action="book_cafe.php" style="display: flex; gap: 10px;">
+            <form method="GET" action="book_cafe.php" id="filterForm" style="display: flex; gap: 10px;">
                 <input type="date" name="view_date" required value="<?= $view_date ?>" style="width: 160px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center;" onchange="this.form.submit()">
+                
                 <select name="view_time" required style="width: 140px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center;" onchange="this.form.submit()" <?= $is_closed ? 'disabled' : '' ?>>
                     <?php foreach($time_slots as $t): ?>
                         <option value="<?= $t ?>" <?= $view_time == $t ? 'selected' : '' ?>><?= date('g:i A', strtotime($t)) ?></option>
                     <?php endforeach; ?>
                 </select>
+                
+                <input type="hidden" name="selected_table" id="selectedTableHidden" value="<?= $selected_table_id ?>">
             </form>
         </div>
 
         <?php if($is_closed): ?>
-            <p style="color:#ef4444; font-size:14px; font-weight:bold; text-align:center;">⚠️ Cafe 1947 is CLOSED every Tuesday.</p>
+            <p style="color:#ef4444; font-size:14px; font-weight:bold; text-align:center; padding: 20px;">⚠️ Cafe 1947 is CLOSED every Tuesday. Please select another date.</p>
         <?php else: ?>
         
-        <!-- MIDDLE: Table Grid -->
         <div style="text-align: center; margin-bottom: 15px;">
             <span style="font-weight: bold; font-size: 13px; color: #1e293b;">Pick a Table (Click a Box)</span>
         </div>
@@ -148,8 +154,10 @@ header_html('cafe','Reserve a Café Table'); ?>
                         $color_class = "tc-yellow";
                     }
                 }
+
+                $is_currently_selected = ($tid == $selected_table_id && $status_text == 'Available') ? 'tc-selected' : '';
             ?>
-                <div class="table-card <?= $color_class ?>" id="card-<?= $tid ?>" onclick="selectTable(<?=$tid?>, '<?=$status_text?>', this)">
+                <div class="table-card <?= $color_class ?> <?= $is_currently_selected ?>" id="card-<?= $tid ?>" onclick="selectTable(<?=$tid?>, '<?=$status_text?>', this)">
                     <?=e($t['table_number'])?>
                     <span style="font-size:10px; font-weight:normal; margin-top:2px;"><?=$status_text?></span>
                     <span style="font-size:9px; font-weight:normal; color:#64748b;">(<?=$t['capacity']?>pax)</span>
@@ -157,7 +165,6 @@ header_html('cafe','Reserve a Café Table'); ?>
             <?php endwhile; ?>
         </div>
 
-        <!-- BOTTOM: Form Centered -->
         <form method="POST" id="bookingForm" class="center-row" style="align-items: flex-end;">
             <?=csrf_field()?>
             <input type="hidden" name="date" value="<?= $view_date ?>">
@@ -170,7 +177,8 @@ header_html('cafe','Reserve a Café Table'); ?>
                     <?php 
                     $dd = $conn->query("SELECT * FROM cafe_tables ORDER BY table_number");
                     while($d = $dd->fetch_assoc()) {
-                        echo "<option value='{$d['table_id']}'>{$d['table_number']} ({$d['capacity']} Seater)</option>";
+                        $sel = ($d['table_id'] == $selected_table_id) ? 'selected' : '';
+                        echo "<option value='{$d['table_id']}' $sel>{$d['table_number']} ({$d['capacity']} Seater)</option>";
                     }
                     ?>
                 </select>
@@ -188,7 +196,7 @@ header_html('cafe','Reserve a Café Table'); ?>
         <?php endif; ?>
     </div>
 
-    <!-- BAGONG DESIGN PARA SA TABLE DETAILS -->
+    <!-- MINIMIZED TABLE DETAILS -->
     <div style="margin-top: 30px; text-align: center; padding: 25px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
         <h4 style="color:#64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px;">
             Café 1947 — Table Capacities
@@ -222,6 +230,8 @@ function selectTable(tableId, status, element) {
 
     let dropdown = document.getElementById('tableDropdown');
     dropdown.value = tableId;
+
+    document.getElementById('selectedTableHidden').value = tableId;
 
     document.getElementById('paxInput').focus();
 }

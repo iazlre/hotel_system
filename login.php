@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
         if ($u['role']==='Staff' && $u['staff_id']){
             $s=$conn->query("SELECT * FROM staff WHERE staff_id=".(int)$u['staff_id'])->fetch_assoc();
             $_SESSION['staff_role']=$s['role']; $_SESSION['name']=$s['first_name'].' '.$s['last_name'];
-        } elseif ($u['role']==='Guest' && $u['guest_id']){ // CHANGED HERE
+        } elseif ($u['role']==='Guest' && $u['guest_id']){
             $g=$conn->query("SELECT * FROM guests WHERE guest_id=".(int)$u['guest_id'])->fetch_assoc();
             $_SESSION['name']=$g['first_name'].' '.$g['last_name'];
         } else $_SESSION['name']='Administrator';
@@ -30,12 +30,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST'){
 <link rel="stylesheet" href="style.css"></head>
 <body class="login-body">
 <div class="login-box">
-    <h2> Hotel &amp; Restaurant</h2>
+    <h2>Hotel &amp; Restaurant</h2>
     <p style="text-align:center;color:#64748b;margin-bottom:20px;">Sign in to your portal</p>
+    
     <?php if($err): ?><div class="flash flash-error"><?= e($err) ?></div><?php endif; ?>
+    
     <form method="POST">
         <input type="email" name="email" placeholder="Email" required autofocus>
         <input type="password" name="password" placeholder="Password" required>
         <button>Sign In</button>
     </form>
+    
+    <!-- BAGONG DAGDAG PARA SA REGISTRATION -->
+    <div style="text-align: center; margin-top: 20px; font-size: 14px;">
+        Don't have an account? <a href="register.php" style="color: #38bdf8; text-decoration: none; font-weight: bold;">Register here</a>
+    </div>
 </div></body></html>

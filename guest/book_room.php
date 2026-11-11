@@ -176,10 +176,10 @@ header_html('book','Book a Room'); ?>
 
 <div style="display:flex; justify-content:space-between; align-items:flex-end; margin:30px 0 10px;">
     <div>
-        <h2 style="font-size:18px;color:#1e293b;margin:0;">🎟️ Room Availability (Next 7 Days)</h2>
+        <h2 style="font-size:18px;color:#1e293b;margin:0;"> Room Availability (Next 7 Days)</h2>
         <p style="font-size:12px; color:#64748b; margin-top:5px;">Click a <b style="color:#22c55e;">Vacant</b> slot to automatically fill the form above.</p>
     </div>
-    <button type="button" class="btn btn-secondary" onclick="openCalendar()" style="padding: 10px 15px; font-size: 13px;">📅 Open Full Calendar</button>
+    <button type="button" class="btn btn-secondary" onclick="openCalendar()" style="padding: 10px 15px; font-size: 13px;"> Open Full Calendar</button>
 </div>
 
 <!-- BINAGO: Nilagyan ng background, border-radius, shadow, at margin -->
@@ -221,7 +221,7 @@ header_html('book','Book a Room'); ?>
             ?>
                 <td>
                     <?php if ($isCleaning): ?>
-                        <div class="slot-box" style="background:#dbeafe; color:#1e40af;">Clean</div>
+                        <div class="slot-box" style="background:#dbeafe; color:#1e40af;">Cleaning</div>
                     <?php elseif ($isOccupied): ?>
                         <div class="slot-box" style="background:#fee2e2; color:#991b1b;">Occupied</div>
                     <?php elseif ($isReserved): ?>

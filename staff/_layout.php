@@ -8,7 +8,9 @@ function header_html($page,$title){
 <!DOCTYPE html><html><head><meta charset="UTF-8"><title><?=e($title)?> · Staff</title>
 <link rel="stylesheet" href="../style.css"></head><body>
 <div class="sidebar">
-    <h2>Staff Portal</h2>
+    <!-- BINAGO: Dynamic Role Title -->
+    <h2> <?= e($u['staff_role']) ?> Portal</h2>
+    
     <a href="dashboard.php"  class="<?=$page==='dashboard'?'active':''?>">Dashboard</a>
     <a href="operations.php" class="<?=$page==='ops'?'active':''?>">Operations</a>
     <div class="sidebar-footer"><div><?=e($u['name'])?><br><small style="color:#64748b"><?=e($u['staff_role'])?></small></div>
